@@ -2,14 +2,16 @@
 
 const Aj = { $tela: null, conta: '' };
 
-async function viewAjustes($tela) {
-  const r = await Api.me();
-  Sessao.atualizarUsuario(r.usuario);
-  Aj.conta = r.conta_agenda || '';
-  if (rotaAtual !== 'config') return;
+function viewAjustes($tela) {
   Aj.$tela = $tela;
   $tela.onclick = cliqueAjustes;
-  renderAjustes();
+  renderAjustes();                         // aparece na hora, com o que já está guardado
+  const antes = JSON.stringify(Sessao.usuario()) + Aj.conta;
+  Api.me().then(r => {                     // e confere com o servidor por baixo dos panos
+    Sessao.atualizarUsuario(r.usuario);
+    Aj.conta = r.conta_agenda || '';
+    if (JSON.stringify(r.usuario) + Aj.conta !== antes) Dados._seguro(renderAjustes);
+  }).catch(e => { if (e.message === 'SESSAO_INVALIDA') sessaoExpirada(); });
 }
 VIEWS.config = viewAjustes;
 
@@ -72,13 +74,28 @@ async function cliqueAjustes(ev) {
     const ok = await Dialogo.confirmar({ titulo: 'Desconectar a agenda?', texto: 'Os compromissos já enviados continuam na Agenda Google. Você só deixa de enviar novos.', ok: 'Desconectar' });
     if (ok) salvarAgenda(el, '');
   }
-  if (acao === 'email-teste') {
-    const ok = await Dialogo.confirmar({ titulo: 'Enviar relatório de teste?', texto: 'O responsável vai receber agora um e-mail com o resumo da semana até hoje.', ok: 'Enviar' });
-    if (!ok) return;
-    el.disabled = true; el.textContent = 'Enviando...';
-    try { const r = await Api.emailTeste(); Toast.mostrar(`Relatório enviado para ${r.para}.`); }
-    catch (e) { tratarErro(e); }
-    renderAjustes();
+  if (acao === 'email-teste') enviarRelatorioAgora(el);
+}
+
+/* Envia agora o relatório da semana (até hoje) ao responsável. Usada aqui e na tela inicial. */
+async function enviarRelatorioAgora(btn) {
+  const u = Sessao.usuario();
+  if (!u.email_responsavel) { Toast.mostrar('Ainda não há e-mail de responsável cadastrado.', 'erro'); return; }
+  const ok = await Dialogo.confirmar({
+    titulo: 'Enviar o relatório agora?',
+    texto: `O resumo da semana até hoje será enviado para ${u.nome_responsavel ? u.nome_responsavel + ' (' + u.email_responsavel + ')' : u.email_responsavel}.`,
+    ok: 'Enviar agora'
+  });
+  if (!ok) return;
+  const original = btn.innerHTML;
+  btn.disabled = true; btn.textContent = 'Enviando...';
+  try {
+    const r = await Api.emailTeste();
+    Toast.mostrar(`Relatório enviado para ${r.para}.`);
+  } catch (e) {
+    tratarErro(e);
+  } finally {
+    btn.disabled = false; btn.innerHTML = original;
   }
 }
 

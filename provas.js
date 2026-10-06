@@ -4,7 +4,7 @@ const Pv = { $tela: null, anteriores: false };
 const TABELAS_PROVAS = ['AnoLetivo', 'Bimestres', 'Materias', 'Metas', 'Regras', 'Provas'];
 
 async function viewProvas($tela) {
-  await Dados.carregar(TABELAS_PROVAS);
+  await Dados.carregar(TABELAS_PROVAS, () => renderProvas());
   if (rotaAtual !== 'provas') return;
   Pv.$tela = $tela;
   $tela.onclick = cliqueProvas;

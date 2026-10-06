@@ -3,7 +3,7 @@
 const Ag = { $tela: null, semana: null, dia: null, sel: new Set(), vistas: new Set(), exportando: false };
 
 async function viewAgenda($tela) {
-  await Dados.carregar(TABELAS_MOTOR);
+  await Dados.carregar(TABELAS_MOTOR, () => renderAgenda());
   if (rotaAtual !== 'agenda') return;
   Ag.$tela = $tela;
   const hoje = hojeISO();
@@ -156,7 +156,7 @@ async function exportarSelecionados() {
     tratarErro(e);
   } finally {
     Ag.exportando = false;
-    try { await Dados.carregar(['Plano']); } catch (e) { /* mantém o que já está na tela */ }
+    try { await Dados.carregar(['Plano'], null, true); } catch (e) { /* mantém o que já está na tela */ }
     renderAgenda();
   }
 }
@@ -166,7 +166,7 @@ async function tirarDaAgenda(d, mid) {
   if (!ok) return;
   try {
     await Api.agendaRemover(d, mid);
-    await Dados.carregar(['Plano']);
+    await Dados.carregar(['Plano'], null, true);
     Toast.mostrar('Compromisso removido da agenda.');
   } catch (e) { tratarErro(e); }
   renderAgenda();

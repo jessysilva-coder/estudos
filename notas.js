@@ -6,7 +6,7 @@ const TIPOS_NOTA = ['Prova', 'Trabalho', 'Atividade', 'Participação', 'Recuper
 const ROTULO_STATUS = { ok: ['Na média', 'ok'], atencao: ['Atenção', 'alerta'], abaixo: ['Abaixo da média', 'erro'], sem_notas: ['Sem notas', 'neutro'] };
 
 async function viewNotas($tela) {
-  await Dados.carregar(TABELAS_NOTAS);
+  await Dados.carregar(TABELAS_NOTAS, () => renderNotas());
   if (rotaAtual !== 'notas') return;
   Nt.$tela = $tela;
   if (Nt.bim === null) { const c = ctxAgora(); Nt.bim = Motor.bimestreAtual(c) || 1; }

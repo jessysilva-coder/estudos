@@ -1,8 +1,12 @@
 /* Início: resumo do dia, o que pede atenção e as matérias de hoje e de amanhã */
 
 async function viewInicio($tela) {
-  await Dados.carregar(TABELAS_MOTOR);
+  await Dados.carregar(TABELAS_MOTOR, () => renderInicio($tela));
   if (rotaAtual !== 'inicio') return;
+  $tela.onclick = (ev) => {
+    const el = ev.target.closest('[data-acao="relatorio"]');
+    if (el && !el.disabled) enviarRelatorioAgora(el);
+  };
   renderInicio($tela);
 }
 VIEWS.inicio = viewInicio;
@@ -34,17 +38,17 @@ function renderInicio($tela) {
   }
 
   const r = Motor.resumoDia(c, c.hoje);
-  const atr = Motor.atrasados(c, c.inicioPlano || c.hoje, addDias(c.hoje, -1));
+  const atr = Motor.atrasados(c, addDias(c.hoje, -14), addDias(c.hoje, -1));   // só os últimos 14 dias: dá para agir sobre isso
   let humor = 'padrao', frase = 'Veja o que tem para estudar hoje.';
   if (r.pct != null && r.pct >= 1) frase = 'Plano de hoje concluído. Que orgulho!';
-  else if (atr.length > 3) { humor = 'bravo'; frase = 'Tem bastante coisa atrasada. Vamos organizar isso?'; }
+  else if (atr.length >= 15) { humor = 'bravo'; frase = 'Tem bastante coisa atrasada. Vamos organizar isso?'; }
   else if (r.estudadoTotal > 0) { humor = 'estudando'; frase = 'Você já começou. Falta pouco!'; }
   else if (atr.length) { humor = 'chateado'; frase = 'Ficou algo para trás. Dá para recuperar hoje.'; }
 
   const prova = c.provas.filter(p => p.data >= c.hoje).sort((a, b) => a.data.localeCompare(b.data))[0];
   const trab = c.trabalhos.filter(t => !Motor.trabalhoConcluido(t)).sort((a, b) => a.data_entrega.localeCompare(b.data_entrega))[0];
   const linhas = [];
-  if (atr.length) linhas.push(`<a class="atencao-linha alerta" href="#/plano"><strong>${atr.length} ${atr.length === 1 ? 'item atrasado' : 'itens atrasados'}</strong><span>Ver o que ficou para trás</span></a>`);
+  if (atr.length) linhas.push(`<a class="atencao-linha alerta" href="#/plano"><strong>${atr.length} ${atr.length === 1 ? 'item atrasado' : 'itens atrasados'}</strong><span>Últimos 14 dias · ver o que ficou para trás</span></a>`);
   if (prova) linhas.push(`<a class="atencao-linha" href="#/provas"><strong>${esc(c.porId[prova.materia_id].nome)}: prova ${esc(String(prova.tipo).toLowerCase())}</strong><span>${esc(fmtDataCurta(prova.data))} · ${esc(quandoTexto(prova.data, c.hoje))}</span></a>`);
   if (trab) linhas.push(`<a class="atencao-linha" href="#/trabalhos"><strong>${esc(trab.titulo)}</strong><span>Entrega em ${esc(fmtDataCurta(trab.data_entrega))} · ${esc(quandoTexto(trab.data_entrega, c.hoje))}</span></a>`);
 
@@ -52,10 +56,17 @@ function renderInicio($tela) {
   const hojeHtml = chipsMaterias(c, Motor.comAula(c, c.hoje)) || '<p class="vazio">Hoje não tem aula cadastrada.</p>';
   const amanhaHtml = alvo ? (chipsMaterias(c, Motor.comAula(c, alvo)) || '<p class="vazio">Sem aula nesse dia.</p>') : '<p class="vazio">O estudo antecipado está desligado em Metas e regras.</p>';
 
+  const temEmail = !!u.email_responsavel;
   $tela.innerHTML = `
   <section class="boas-vindas">
     <div><h1>${saudacao()}, ${esc(nome)}!</h1><p>${esc(dataTxt)}. ${esc(frase)}</p></div>
     ${Mascote.html(humor, 'Mascote')}
+  </section>
+  <section class="painel relatorio-card">
+    <div><h2>Relatório para o responsável</h2>
+      <p class="dica">${temEmail ? `Toda segunda-feira o resumo da semana vai para ${esc(u.nome_responsavel || 'o responsável')} (${esc(u.email_responsavel)}). Para ver como fica, envie agora.`
+        : 'Ainda não há e-mail de responsável cadastrado. Peça a quem fez o seu cadastro para incluir.'}</p></div>
+    <button class="btn" data-acao="relatorio" ${temEmail ? '' : 'disabled'}>📧 Enviar relatório ao responsável agora</button>
   </section>
   <div class="duas-colunas">
     <section class="painel hoje-card">

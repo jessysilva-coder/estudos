@@ -3,7 +3,7 @@
 const Es = { $tela: null, aba: 'resumo', periodo: 'semana', de: null, ate: null, ano: null, mes: null };
 
 async function viewEstatisticas($tela) {
-  await Dados.carregar(TABELAS_MOTOR);
+  await Dados.carregar(TABELAS_MOTOR, () => renderEst());
   if (rotaAtual !== 'estatisticas') return;
   Es.$tela = $tela;
   const hoje = hojeISO();

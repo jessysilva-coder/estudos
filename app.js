@@ -62,6 +62,7 @@ function sessaoExpirada() {
 /* ---------- login ---------- */
 function mostrarLogin(mensagem) {
   rotaAtual = null;
+  Dados.limpar();                       // nunca deixa dados de um aluno na memória para o próximo
   $raiz.innerHTML = `
   <main class="login">
     <section class="login-lado" aria-hidden="true">
@@ -158,6 +159,8 @@ function iniciarApp() {
   document.getElementById('btn-sair').addEventListener('click', sair);
   document.getElementById('btn-sair-m').addEventListener('click', sair);
   if (typeof atualizarIndicadorCron === 'function') atualizarIndicadorCron();
+  // carrega tudo em segundo plano já na entrada: depois disso, trocar de tela é instantâneo
+  Dados.carregar(TABELAS_TUDO).catch(() => { /* cada tela mostra o erro, se precisar */ });
   if (!location.hash) location.hash = '#/inicio';
   rotear();
 }
@@ -217,6 +220,7 @@ async function boot() {
   try {
     const r = await Api.me();
     Sessao.atualizarUsuario(r.usuario);
+    if (typeof Aj !== 'undefined') Aj.conta = r.conta_agenda || '';
     iniciarApp();
   } catch (err) {
     Sessao.limpar();

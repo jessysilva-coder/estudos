@@ -10,7 +10,7 @@ const CHECKLIST_PADRAO = [
 ];
 
 async function viewTrabalhos($tela) {
-  await Dados.carregar(TABELAS_TRAB);
+  await Dados.carregar(TABELAS_TRAB, () => renderTrabalhos());
   if (rotaAtual !== 'trabalhos') return;
   Tb.$tela = $tela;
   $tela.onclick = cliqueTrabalhos;

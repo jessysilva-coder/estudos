@@ -10,18 +10,19 @@ const CORES_MATERIA = ['#376adf', '#4F7CFF', '#2FB5D6', '#14B8A6', '#34C48B', '#
 const TIPOS_MATERIAL = ['Apostila', 'Livro', 'Caderno de atividades', 'Outro'];
 
 const Ano = {
-  anos: [], bimestres: [], materias: [], grade: [], materiais: [],
   anoId: null, aba: 'bimestres', filtroBim: 'todos',
-  pendentes: new Set(), $tela: null
+  pendentes: new Set(), $tela: null,
+  // as listas moram no armazém de dados (Dados.t), compartilhado com as outras telas
+  get anos() { return Dados.t.AnoLetivo || []; },      set anos(v) { Dados.t.AnoLetivo = v; },
+  get bimestres() { return Dados.t.Bimestres || []; }, set bimestres(v) { Dados.t.Bimestres = v; },
+  get materias() { return Dados.t.Materias || []; },   set materias(v) { Dados.t.Materias = v; },
+  get grade() { return Dados.t.Grade || []; },         set grade(v) { Dados.t.Grade = v; },
+  get materiais() { return Dados.t.Materiais || []; }, set materiais(v) { Dados.t.Materiais = v; }
 };
 
 /* ---------- dados ---------- */
-async function carregarAno() {
-  const [anos, bimestres, materias, grade, materiais] = await Promise.all(
-    ['AnoLetivo', 'Bimestres', 'Materias', 'Grade', 'Materiais'].map(t => Api.listar(t)));
-  Object.assign(Ano, { anos, bimestres, materias, grade, materiais });
-  const a = escolherAno(anos);
-  Ano.anoId = a ? a.id : null;
+function ajustarAnoEscolhido() {
+  if (!Ano.anos.some(a => a.id === Ano.anoId)) { const a = escolherAno(Ano.anos); Ano.anoId = a ? a.id : null; }
 }
 
 const anoAtual = () => Ano.anos.find(a => a.id === Ano.anoId) || null;
@@ -37,8 +38,9 @@ const semanasEntre = (ini, fim) => Math.floor((msUTC(fim) - msUTC(ini)) / 864e5 
 
 /* ---------- entrada da tela ---------- */
 async function viewAno($tela) {
-  await carregarAno();
+  await Dados.carregar(TABELAS_ANO, () => { ajustarAnoEscolhido(); renderAno(); });
   if (rotaAtual !== 'ano') return;
+  Ano.anoId = null; ajustarAnoEscolhido();
   Ano.$tela = $tela;
   $tela.onclick = cliqueAno;
   $tela.onchange = mudancaAno;
@@ -244,11 +246,10 @@ function formAno(novo) {
       const dados = { ano: v.ano, nome: v.nome || `Ano letivo ${v.ano}`, media_minima: v.media_minima };
       if (a) {
         dados.id = a.id;
-        Object.assign(a, await Api.salvar('AnoLetivo', dados));
+        await Dados.salvar('AnoLetivo', dados);
       } else {
         dados.ativo = 'SIM';
-        const reg = await Api.salvar('AnoLetivo', dados);
-        Ano.anos.push(reg);
+        const reg = await Dados.salvar('AnoLetivo', dados);
         Ano.anoId = reg.id;
         localStorage.setItem('ce_ano', reg.id);
         await criarBimestres(false);
@@ -264,8 +265,7 @@ async function criarBimestres(avisar) {
   const tem = new Set(bimestresDoAno().map(b => Number(b.numero)));
   const faltam = [1, 2, 3, 4].filter(n => !tem.has(n));
   try {
-    const novos = await Promise.all(faltam.map(n => Api.salvar('Bimestres', { ano_id: Ano.anoId, numero: n })));
-    Ano.bimestres.push(...novos);
+    await Promise.all(faltam.map(n => Dados.salvar('Bimestres', { ano_id: Ano.anoId, numero: n })));
     if (avisar) { renderAno(); Toast.mostrar('Bimestres criados.'); }
   } catch (e) {
     if (avisar) tratarErro(e); else throw e;
@@ -287,7 +287,7 @@ function formBimestre(id) {
     onSalvar: async (v) => {
       if (v.fim_aulas < v.inicio) throw new Error('O fim das aulas não pode ser antes do início.');
       if (v.fim_provas && v.fim_provas < v.fim_aulas) throw new Error('O fim das provas não pode ser antes do fim das aulas.');
-      Object.assign(b, await Api.salvar('Bimestres', { id: b.id, ...v }));
+      await Dados.salvar('Bimestres', { id: b.id, ...v });
       renderAno();
       Toast.mostrar('Datas salvas.');
     }
@@ -316,10 +316,10 @@ function formMateria(id) {
       const dados = { nome: v.nome, cor: v.cor, media_minima: v.media_minima, ativa: v.ativa };
       if (m) {
         dados.id = m.id;
-        Object.assign(m, await Api.salvar('Materias', dados));
+        await Dados.salvar('Materias', dados);
       } else {
         dados.ano_id = Ano.anoId;
-        Ano.materias.push(await Api.salvar('Materias', dados));
+        await Dados.salvar('Materias', dados);
       }
       renderAno();
       Toast.mostrar('Matéria salva.');
@@ -327,11 +327,8 @@ function formMateria(id) {
     onExcluir: m ? async () => {
       const g = Ano.grade.filter(x => x.materia_id === m.id);
       const t = Ano.materiais.filter(x => x.materia_id === m.id);
-      await Promise.all([...g.map(x => Api.excluir('Grade', x.id)), ...t.map(x => Api.excluir('Materiais', x.id))]);
-      await Api.excluir('Materias', m.id);
-      Ano.grade = Ano.grade.filter(x => x.materia_id !== m.id);
-      Ano.materiais = Ano.materiais.filter(x => x.materia_id !== m.id);
-      Ano.materias = Ano.materias.filter(x => x.id !== m.id);
+      await Promise.all([...g.map(x => Dados.excluir('Grade', x.id)), ...t.map(x => Dados.excluir('Materiais', x.id))]);
+      await Dados.excluir('Materias', m.id);
       renderAno();
       Toast.mostrar('Matéria excluída, com seus dias de aula e materiais.');
     } : null
@@ -343,6 +340,7 @@ async function alternarAula(materiaId, dia) {
   const chave = materiaId + '|' + dia;
   if (Ano.pendentes.has(chave)) return;
   Ano.pendentes.add(chave);
+  Dados.tocar();
   const existente = Ano.grade.find(g => g.materia_id === materiaId && Number(g.dia_semana) === dia);
   try {
     if (existente) {
@@ -363,6 +361,7 @@ async function alternarAula(materiaId, dia) {
     tratarErro(e);
   } finally {
     Ano.pendentes.delete(chave);
+    Dados.tocar();
     if (rotaAtual === 'ano') renderAno();
   }
 }
@@ -390,16 +389,15 @@ function formMaterial(id) {
       const dados = { materia_id: v.materia_id, tipo: v.tipo, titulo: v.titulo, bimestre: Number(v.bimestre), paginas_total: v.paginas_total };
       if (x) {
         dados.id = x.id;
-        Object.assign(x, await Api.salvar('Materiais', dados));
+        await Dados.salvar('Materiais', dados);
       } else {
-        Ano.materiais.push(await Api.salvar('Materiais', dados));
+        await Dados.salvar('Materiais', dados);
       }
       renderAno();
       Toast.mostrar('Material salvo.');
     },
     onExcluir: x ? async () => {
-      await Api.excluir('Materiais', x.id);
-      Ano.materiais = Ano.materiais.filter(i => i.id !== x.id);
+      await Dados.excluir('Materiais', x.id);
       renderAno();
       Toast.mostrar('Material excluído.');
     } : null

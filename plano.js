@@ -108,10 +108,10 @@ function formTempo(iso, mid, depois) {
 }
 
 /* ---------- tela ---------- */
-const Pl = { $tela: null, data: null, aba: 'hoje', periodo: 'semana' };
+const Pl = { $tela: null, data: null, aba: 'hoje', periodo: 'quinze' };
 
 async function viewPlano($tela) {
-  await Dados.carregar(TABELAS_MOTOR);
+  await Dados.carregar(TABELAS_MOTOR, () => renderPlano());
   if (rotaAtual !== 'plano') return;
   Pl.$tela = $tela;
   Pl.data = hojeISO();
@@ -136,7 +136,7 @@ function renderPlano() {
       <h2>Falta cadastrar o ano letivo</h2><p>O plano nasce das suas matérias e dos dias de aula.</p><a class="btn" href="#/ano">Ir para Ano letivo</a></section>`;
     return;
   }
-  const nAtr = Motor.atrasados(c, c.inicioPlano || c.hoje, addDias(c.hoje, -1)).length;
+  const nAtr = Motor.atrasados(c, addDias(c.hoje, -14), addDias(c.hoje, -1)).length;
   Pl.$tela.innerHTML = `
   <header><h1>Plano de estudos</h1><p>O que estudar, quanto já foi feito e o que ficou para trás.</p></header>
   <div class="abas" role="tablist">
@@ -189,6 +189,7 @@ function htmlDia(c) {
 
 function htmlAtrasados(c) {
   let de = c.inicioPlano || c.hoje;
+  if (Pl.periodo === 'quinze') de = addDias(c.hoje, -14);
   if (Pl.periodo === 'semana') de = inicioSemana(c.hoje);
   if (Pl.periodo === 'mes') de = c.hoje.slice(0, 8) + '01';
   const lista = Motor.atrasados(c, de, addDias(c.hoje, -1));
@@ -198,11 +199,11 @@ function htmlAtrasados(c) {
   const chip = (v, r) => `<button data-acao="periodo" data-v="${v}" aria-pressed="${Pl.periodo === v}">${r}</button>`;
 
   return `
-  <div class="filtros" role="group" aria-label="Período">${chip('semana', 'Esta semana')}${chip('mes', 'Este mês')}${chip('tudo', 'Desde o início')}</div>
+  <div class="filtros" role="group" aria-label="Período">${chip('quinze', 'Últimos 14 dias')}${chip('semana', 'Esta semana')}${chip('mes', 'Este mês')}${chip('tudo', 'Desde o início')}</div>
   <section class="painel resumo-dia" style="margin-top:16px">
     <div class="resumo-texto"><h2>${lista.length ? `${lista.length} ${lista.length === 1 ? 'item atrasado' : 'itens atrasados'}` : 'Nada atrasado!'}</h2>
       <p class="dica">${lista.length ? `Ficaram ${fmtMin(falta)} de estudo para trás. Dá para marcar como feito ou estudar agora.` : 'Você está em dia com o cronograma neste período.'}</p></div>
-    <div class="resumo-mascote">${Mascote.html(lista.length > 3 ? 'bravo' : lista.length ? 'chateado' : 'padrao', '')}</div>
+    <div class="resumo-mascote">${Mascote.html(lista.length >= 15 ? 'bravo' : lista.length ? 'chateado' : 'padrao', '')}</div>
   </section>
   ${[...porDia].sort((a, b) => b[0].localeCompare(a[0])).map(([d, itens]) => `
     <h2 class="subtitulo">${esc(fmtDataLonga(d))}</h2>
