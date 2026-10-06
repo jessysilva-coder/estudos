@@ -35,23 +35,24 @@ window.Mascote = Mascote;
 
 /* ---------- rotas ---------- */
 const ROTAS = [
-  { id: 'inicio',       nome: 'Início',          ico: '🏠', etapa: 1 },
-  { id: 'plano',        nome: 'Plano de estudos', ico: '📋', etapa: 5, texto: 'Aqui você vai ver o progresso do dia por matéria e tudo o que ficou atrasado.' },
-  { id: 'agenda',       nome: 'Agenda',          ico: '🗓️', etapa: 5, texto: 'Aqui você vai ver a semana dia a dia e exportar os estudos para a Agenda Google.' },
-  { id: 'cronometro',   nome: 'Cronômetro',      ico: '⏱️', etapa: 6, texto: 'Aqui você vai escolher a matéria, dar o play e o tempo estudado é contado sozinho.' },
-  { id: 'provas',       nome: 'Provas',          ico: '📝', etapa: 3, texto: 'Aqui você vai cadastrar as provas e receber um tempo de preparação nos dias anteriores.' },
-  { id: 'trabalhos',    nome: 'Trabalhos',       ico: '📎', etapa: 3, texto: 'Aqui você vai cadastrar os trabalhos, acompanhar o checklist de cada um e registrar a nota.' },
-  { id: 'notas',        nome: 'Notas',           ico: '🏅', etapa: 3, texto: 'Aqui você vai lançar as notas do bimestre e ver quantos pontos faltam para passar.' },
-  { id: 'metas',        nome: 'Metas e regras',  ico: '🎯', etapa: 4, texto: 'Aqui você vai definir quanto tempo estuda por dia e ajustar como o tempo é dividido entre as matérias.' },
-  { id: 'estatisticas', nome: 'Estatísticas',    ico: '📊', etapa: 8, texto: 'Aqui você vai ver horas estudadas, meta atingida, notas e o mapa de consistência do ano.' },
-  { id: 'ano',          nome: 'Ano letivo',      ico: '📚', etapa: 2, texto: 'Aqui você vai cadastrar bimestres, matérias, dias de aula e materiais didáticos.' },
-  { id: 'config',       nome: 'Configurações',   ico: '⚙️', etapa: 1 }
+  { id: 'inicio',       nome: 'Início',          ico: '🏠' },
+  { id: 'plano',        nome: 'Plano de estudos', ico: '📋' },
+  { id: 'agenda',       nome: 'Agenda',          ico: '🗓️' },
+  { id: 'cronometro',   nome: 'Cronômetro',      ico: '⏱️' },
+  { id: 'provas',       nome: 'Provas',          ico: '📝' },
+  { id: 'trabalhos',    nome: 'Trabalhos',       ico: '📎' },
+  { id: 'notas',        nome: 'Notas',           ico: '🏅' },
+  { id: 'metas',        nome: 'Metas e regras',  ico: '🎯' },
+  { id: 'estatisticas', nome: 'Estatísticas',    ico: '📊' },
+  { id: 'ano',          nome: 'Ano letivo',      ico: '📚' },
+  { id: 'config',       nome: 'Configurações',   ico: '⚙️' }
 ];
 
 let rotaAtual = null;
 
-/* Cada tela é uma função que recebe o elemento #tela e devolve o HTML (ou desenha sozinha). */
-const VIEWS = { inicio: viewInicio, config: viewConfig };
+/* Cada tela é uma função que recebe o elemento #tela e devolve o HTML (ou desenha sozinha).
+   Cada arquivo de tela registra a sua aqui (VIEWS.nome = função). */
+const VIEWS = {};
 
 function sessaoExpirada() {
   Sessao.limpar();
@@ -156,6 +157,7 @@ function iniciarApp() {
   </div>`;
   document.getElementById('btn-sair').addEventListener('click', sair);
   document.getElementById('btn-sair-m').addEventListener('click', sair);
+  if (typeof atualizarIndicadorCron === 'function') atualizarIndicadorCron();
   if (!location.hash) location.hash = '#/inicio';
   rotear();
 }
@@ -197,96 +199,17 @@ function viewEmBreve(rota) {
   return `<header><h1>${esc(rota.nome)}</h1></header>
   <section class="painel em-breve">
     ${Mascote.html('estudando', '')}
-    <h2>Esta área chega na etapa ${rota.etapa}</h2>
+    <h2>Esta área ainda não está disponível</h2>
     <p>${esc(rota.texto || '')}</p>
   </section>`;
 }
 
-/* ---------- Início ---------- */
-function saudacao() {
-  const h = new Date().getHours();
-  return h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite';
-}
-
-function chipsDoDia(dia, materias, grade) {
-  const ids = [...new Set(grade.filter(g => Number(g.dia_semana) === dia).map(g => String(g.materia_id)))];
-  const porId = Object.fromEntries(materias.map(m => [String(m.id), m]));
-  const lista = ids.map(id => porId[id]).filter(Boolean)
-    .sort((a, b) => String(a.nome).localeCompare(String(b.nome), 'pt-BR'));
-  if (!lista.length) return null;
-  return `<div class="chips">${lista.map(m =>
-    `<span class="chip"><i style="background:${esc(m.cor || '#b071ea')}"></i>${esc(m.nome)}</span>`).join('')}</div>`;
-}
-
-async function viewInicio() {
-  const u = Sessao.usuario();
-  const [anos, todasMaterias, grade] = await Promise.all([Api.listar('AnoLetivo'), Api.listar('Materias'), Api.listar('Grade')]);
-  const ano = escolherAno(anos);
-  const materias = ano ? todasMaterias.filter(m => m.ano_id === ano.id && ativa(m)) : [];
-  const semMaterias = materias.length === 0;
-  const hoje = new Date();
-  const dow = hoje.getDay() || 7;        // 1 = segunda ... 7 = domingo
-  const amanha = (dow % 7) + 1;
-  const dataTxt = hoje.toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' });
-
-  const cadastre = '<p class="vazio">Cadastre suas matérias para ver tudo aqui. <a href="#/ano">Ir para Ano letivo</a></p>';
-  const hojeHtml = chipsDoDia(dow, materias, grade) || (semMaterias ? cadastre : '<p class="vazio">Hoje não tem aula cadastrada.</p>');
-  const amanhaHtml = chipsDoDia(amanha, materias, grade) || (semMaterias ? cadastre : '<p class="vazio">Amanhã não tem aula cadastrada.</p>');
-
-  return `
-  <section class="boas-vindas">
-    <div>
-      <h1>${saudacao()}, ${esc(primeiroNome(u.nome))}!</h1>
-      <p>${esc(dataTxt.charAt(0).toUpperCase() + dataTxt.slice(1))}. Veja o que tem para estudar hoje.</p>
-    </div>
-    ${Mascote.html('padrao', 'Mascote sorrindo')}
-  </section>
-  <div class="duas-colunas">
-    <section class="painel">
-      <h2>Revisar hoje</h2>
-      <p class="dica">Matérias que tiveram aula hoje.</p>
-      ${hojeHtml}
-    </section>
-    <section class="painel">
-      <h2>Estudar com antecedência</h2>
-      <p class="dica">Matérias da aula de amanhã.</p>
-      ${amanhaHtml}
-    </section>
-  </div>`;
-}
-
-/* ---------- Configurações ---------- */
-async function viewConfig() {
-  const r = await Api.me();
-  Sessao.atualizarUsuario(r.usuario);
-  const u = r.usuario;
-  const linha = (rot, v) => `<dt>${rot}</dt><dd>${v ? esc(v) : '<span class="vazio">Não informado</span>'}</dd>`;
-  return `
-  <header><h1>Configurações</h1><p>Seus dados de cadastro. Para alterar, peça a quem cadastrou você.</p></header>
-  <div class="stack">
-    <section class="painel">
-      <h2>Minha conta</h2>
-      <dl class="dados-lista" style="margin-top:14px">
-        ${linha('Nome', u.nome)}${linha('E-mail', u.email)}
-        ${linha('Responsável', u.nome_responsavel)}${linha('E-mail do responsável', u.email_responsavel)}
-        ${linha('Agenda Google', u.calendar_id)}
-      </dl>
-    </section>
-    <section class="painel">
-      <h2>Mascote</h2>
-      <p class="dica">As quatro imagens que o sistema usa. Se aparecer um desenho provisório, a imagem ainda não está na pasta img.</p>
-      <div class="galeria">
-        ${['padrao', 'estudando', 'chateado', 'bravo'].map(e =>
-          `<figure>${Mascote.html(e, ROTULO_MASCOTE[e])}<figcaption>${ROTULO_MASCOTE[e]}</figcaption></figure>`).join('')}
-      </div>
-    </section>
-  </div>`;
-}
-
-/* ---------- partida ---------- */
-(async function boot() {
+/* ---------- partida ----------
+   Só começa depois que TODOS os arquivos .js foram lidos (DOMContentLoaded). Se começasse antes,
+   a resposta do servidor podia chegar antes de as telas se registrarem em VIEWS. */
+async function boot() {
   if (!Api.configurada()) {
-    mostrarLogin('O endereço do Apps Script ainda não foi colocado em js/config.js.');
+    mostrarLogin('O endereço do Apps Script ainda não foi colocado em config.js.');
     return;
   }
   if (!Sessao.token()) { mostrarLogin(); return; }
@@ -299,4 +222,6 @@ async function viewConfig() {
     Sessao.limpar();
     mostrarLogin(err.message === 'SESSAO_INVALIDA' ? '' : err.message);
   }
-})();
+}
+if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
+else boot();

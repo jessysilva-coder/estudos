@@ -23,10 +23,13 @@ const Api = (() => {
     return /^https:\/\/script\.google\.com\/.+\/exec$/.test(url);
   }
 
+  const LEITURAS = ['login', 'me', 'list', 'list_many'];   // só estas podem ser repetidas sem risco de duplicar dados
+  const LIMITE_URL = 7000;
+
   function chamar(action, params = {}) {
     return new Promise((resolve, reject) => {
       if (!configurada()) {
-        reject(new Error('O endereço do Apps Script ainda não foi colocado em js/config.js.'));
+        reject(new Error('O endereço do Apps Script ainda não foi colocado em config.js.'));
         return;
       }
       const tentar = (n) => {
@@ -40,7 +43,7 @@ const Api = (() => {
         const falhou = () => {
           if (encerrado) return;
           encerrado = true; limpar();
-          if (n < 2) setTimeout(() => tentar(n + 1), ESPERA_RETRY_MS);
+          if (n < 2 && LEITURAS.includes(action)) setTimeout(() => tentar(n + 1), ESPERA_RETRY_MS);
           else reject(new Error('O servidor não respondeu. Confira sua conexão e tente de novo.'));
         };
 
@@ -52,7 +55,13 @@ const Api = (() => {
           if (r && r.ok) resolve(r);
           else reject(new Error((r && r.erro) || 'Erro inesperado.'));
         };
-        s.src = window.APP_CONFIG.API_URL + '?' + q.toString();
+        const url = window.APP_CONFIG.API_URL + '?' + q.toString();
+        if (url.length > LIMITE_URL) {
+          encerrado = true; limpar();
+          reject(new Error('Esse texto ficou grande demais para salvar. Encurte um pouco.'));
+          return;
+        }
+        s.src = url;
         document.head.appendChild(s);
       };
       tentar(1);
@@ -65,6 +74,11 @@ const Api = (() => {
     me: () => chamar('me'),
     listar: (tabela) => chamar('list', { tabela }).then(r => r.dados),
     salvar: (tabela, dados) => chamar('save', { tabela, dados: JSON.stringify(dados) }).then(r => r.registro),
-    excluir: (tabela, id) => chamar('delete', { tabela, id })
+    excluir: (tabela, id) => chamar('delete', { tabela, id }),
+    listarVarias: (tabelas) => chamar('list_many', { tabelas: tabelas.join(',') }).then(r => r.dados),
+    agendaConfig: (calendar_id) => chamar('agenda_config', { calendar_id }),
+    agendaExportar: (data, itens) => chamar('agenda_exportar', { data, itens: JSON.stringify(itens) }),
+    agendaRemover: (data, materia_id) => chamar('agenda_remover', { data, materia_id }),
+    emailTeste: () => chamar('email_teste')
   };
 })();
