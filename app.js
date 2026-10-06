@@ -3,8 +3,6 @@
 const $raiz = document.getElementById('raiz');
 
 /* ---------- utilidades ---------- */
-const esc = (t) => String(t == null ? '' : t)
-  .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 const primeiroNome = (n) => String(n || '').trim().split(/\s+/)[0] || '';
 
 /* ---------- mascote ---------- */
@@ -51,6 +49,14 @@ const ROTAS = [
 ];
 
 let rotaAtual = null;
+
+/* Cada tela é uma função que recebe o elemento #tela e devolve o HTML (ou desenha sozinha). */
+const VIEWS = { inicio: viewInicio, config: viewConfig };
+
+function sessaoExpirada() {
+  Sessao.limpar();
+  mostrarLogin('Sua sessão expirou. Entre de novo.');
+}
 
 /* ---------- login ---------- */
 function mostrarLogin(mensagem) {
@@ -167,14 +173,15 @@ async function rotear() {
   document.title = rota.nome + ' · ' + window.APP_CONFIG.NOME_APP;
   window.scrollTo(0, 0);
 
-  const view = { inicio: viewInicio, config: viewConfig }[rota.id];
+  $tela.onclick = null; $tela.onchange = null;
+  const view = VIEWS[rota.id];
   if (!view) { $tela.innerHTML = viewEmBreve(rota); return; }
   $tela.innerHTML = carregando();
   try {
-    const html = await view();
-    if (rotaAtual === rota.id) $tela.innerHTML = html;
+    const html = await view($tela);
+    if (rotaAtual === rota.id && typeof html === 'string') $tela.innerHTML = html;
   } catch (err) {
-    if (err.message === 'SESSAO_INVALIDA') { sair(); mostrarLogin('Sua sessão expirou. Entre de novo.'); return; }
+    if (err.message === 'SESSAO_INVALIDA') { sessaoExpirada(); return; }
     if (rotaAtual === rota.id) {
       $tela.innerHTML = `<div class="painel"><h2>Não foi possível carregar</h2>
         <p class="dica">${esc(err.message)}</p>
@@ -213,14 +220,18 @@ function chipsDoDia(dia, materias, grade) {
 
 async function viewInicio() {
   const u = Sessao.usuario();
-  const [materias, grade] = await Promise.all([Api.listar('Materias'), Api.listar('Grade')]);
+  const [anos, todasMaterias, grade] = await Promise.all([Api.listar('AnoLetivo'), Api.listar('Materias'), Api.listar('Grade')]);
+  const ano = escolherAno(anos);
+  const materias = ano ? todasMaterias.filter(m => m.ano_id === ano.id && ativa(m)) : [];
+  const semMaterias = materias.length === 0;
   const hoje = new Date();
   const dow = hoje.getDay() || 7;        // 1 = segunda ... 7 = domingo
   const amanha = (dow % 7) + 1;
   const dataTxt = hoje.toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' });
 
-  const hojeHtml = chipsDoDia(dow, materias, grade) || '<p class="vazio">Hoje não tem aula cadastrada.</p>';
-  const amanhaHtml = chipsDoDia(amanha, materias, grade) || '<p class="vazio">Amanhã não tem aula cadastrada.</p>';
+  const cadastre = '<p class="vazio">Cadastre suas matérias para ver tudo aqui. <a href="#/ano">Ir para Ano letivo</a></p>';
+  const hojeHtml = chipsDoDia(dow, materias, grade) || (semMaterias ? cadastre : '<p class="vazio">Hoje não tem aula cadastrada.</p>');
+  const amanhaHtml = chipsDoDia(amanha, materias, grade) || (semMaterias ? cadastre : '<p class="vazio">Amanhã não tem aula cadastrada.</p>');
 
   return `
   <section class="boas-vindas">
